@@ -1,5 +1,11 @@
 package com.stopthephone.ui.settings
 
+import android.Manifest
+import android.content.Context
+import android.content.Intent
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -7,19 +13,29 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.stopthephone.data.SettingsStore
@@ -40,10 +56,32 @@ class SettingsViewModel(private val settingsStore: SettingsStore) : ViewModel() 
     }
 }
 
+private class PermissionItem(val name: String, val granted: Boolean?, val onOpen: () -> Unit)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(viewModel: SettingsViewModel, onBack: () -> Unit) {
     val minutes by viewModel.defaultReleaseMinutes.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    // 从系统设置页回来时刷新权限状态
+    var refreshKey by remember { mutableIntStateOf(0) }
+    LifecycleResumeEffect(Unit) {
+        refreshKey++
+        onPauseOrDispose { }
+    }
+    var notificationAsked by remember { mutableStateOf(false) }
+    val notificationLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { refreshKey++ }
+    val permissions = remember(refreshKey) {
+        permissionItems(context, onRequestNotification = {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !notificationAsked) {
+                notificationAsked = true
+                notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            } else {
+                context.startSafely(Permissions.notificationSettings(context))
+            }
+        })
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -75,7 +113,45 @@ fun SettingsScreen(viewModel: SettingsViewModel, onBack: () -> Unit) {
                         }
                     },
                 )
+                HorizontalDivider()
+            }
+            permissions.forEach { permission ->
+                item {
+                    ListItem(
+                        headlineContent = { Text(permission.name) },
+                        trailingContent = {
+                            if (permission.granted == true) {
+                                Icon(Icons.Default.CheckCircle, contentDescription = "已开启", tint = MaterialTheme.colorScheme.primary)
+                            } else {
+                                TextButton(onClick = permission.onOpen) { Text("去开启") }
+                            }
+                        },
+                    )
+                }
             }
         }
     }
+}
+
+private fun permissionItems(context: Context, onRequestNotification: () -> Unit): List<PermissionItem> {
+    val items = mutableListOf(
+        PermissionItem("管控服务", Permissions.isAccessibilityEnabled(context)) { context.startSafely(Permissions.accessibilitySettings()) },
+        PermissionItem("使用情况访问", Permissions.hasUsageAccess(context)) { context.startSafely(Permissions.usageAccessSettings(context)) },
+        PermissionItem("通知", Permissions.areNotificationsEnabled(context), onRequestNotification),
+        PermissionItem("不限制后台耗电", Permissions.isIgnoringBatteryOptimizations(context)) {
+            context.startSafely(Permissions.batteryOptimizationRequest(context))
+        },
+    )
+    // 系统不提供自启动状态的查询，只给入口
+    if (Permissions.isXiaomi()) {
+        items.add(PermissionItem("自启动", null) { context.startSafely(Permissions.xiaomiAutoStartSettings()) })
+    }
+    return items
+}
+
+/**
+ * 打开系统设置页，ROM 不支持该入口时退回到本应用的应用信息页。
+ */
+fun Context.startSafely(intent: Intent) {
+    runCatching { startActivity(intent) }.onFailure { startActivity(Permissions.appDetailsSettings(this)) }
 }

@@ -28,23 +28,23 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.stopthephone.data.ControlPeriod
 import com.stopthephone.data.ControlRepository
 import com.stopthephone.data.ControlledApp
 import com.stopthephone.data.toRule
+import com.stopthephone.ui.common.GuardedViewModel
 import com.stopthephone.ui.common.PeriodFormat
+import com.stopthephone.ui.common.ReasonDialog
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.launch
 
 data class DetailState(val app: ControlledApp?, val periods: List<ControlPeriod>, val otherApps: List<ControlledApp>)
 
-class AppDetailViewModel(private val repository: ControlRepository, val packageName: String) : ViewModel() {
+class AppDetailViewModel(repository: ControlRepository, val packageName: String) : GuardedViewModel(repository) {
 
     val state: StateFlow<DetailState?> = combine(repository.apps, repository.periods) { apps, periods ->
         DetailState(
@@ -55,15 +55,29 @@ class AppDetailViewModel(private val repository: ControlRepository, val packageN
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     fun savePeriod(period: ControlPeriod) {
-        viewModelScope.launch { repository.savePeriod(period) }
+        guarded(
+            change = { current ->
+                val periods = current[packageName].orEmpty()
+                val updated = if (period.id == 0L) periods + period else periods.map { if (it.id == period.id) period else it }
+                mapOf(packageName to updated)
+            },
+            apply = { repository.savePeriod(period) },
+        )
     }
 
     fun deletePeriod(id: Long) {
-        viewModelScope.launch { repository.deletePeriod(id) }
+        guarded(
+            change = { current -> mapOf(packageName to current[packageName].orEmpty().filter { it.id != id }) },
+            apply = { repository.deletePeriod(id) },
+        )
     }
 
     fun copyTo(targets: List<String>) {
-        viewModelScope.launch { repository.copyPeriods(packageName, targets) }
+        // 复制会覆盖目标应用原有时段
+        guarded(
+            change = { current -> targets.associateWith { target -> current[packageName].orEmpty().map { it.copy(packageName = target) } } },
+            apply = { repository.copyPeriods(packageName, targets) },
+        )
     }
 }
 
@@ -71,6 +85,7 @@ class AppDetailViewModel(private val repository: ControlRepository, val packageN
 @Composable
 fun AppDetailScreen(viewModel: AppDetailViewModel, onBack: () -> Unit) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val pending by viewModel.pending.collectAsStateWithLifecycle()
     // 正在编辑的时段，id 为 0 表示新增
     var editing by remember { mutableStateOf<ControlPeriod?>(null) }
     var copying by remember { mutableStateOf(false) }
@@ -138,6 +153,9 @@ fun AppDetailScreen(viewModel: AppDetailViewModel, onBack: () -> Unit) {
                 editing = null
             },
         )
+    }
+    if (pending != null) {
+        ReasonDialog(onDismiss = viewModel::cancelPending, onConfirm = viewModel::confirmPending)
     }
     if (copying && s != null) {
         CopyPeriodsDialog(

@@ -22,13 +22,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.stopthephone.data.ControlRepository
 import com.stopthephone.data.InstalledApp
 import com.stopthephone.data.InstalledApps
 import com.stopthephone.ui.common.AppIcon
+import com.stopthephone.ui.common.GuardedViewModel
+import com.stopthephone.ui.common.ReasonDialog
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
@@ -37,7 +38,7 @@ import kotlinx.coroutines.launch
 
 data class PickerState(val apps: List<InstalledApp>, val original: Set<String>, val selected: Set<String>)
 
-class AppPickerViewModel(private val repository: ControlRepository, installedApps: InstalledApps) : ViewModel() {
+class AppPickerViewModel(repository: ControlRepository, installedApps: InstalledApps) : GuardedViewModel(repository) {
 
     private val _state = MutableStateFlow<PickerState?>(null)
     val state: StateFlow<PickerState?> = _state
@@ -57,12 +58,16 @@ class AppPickerViewModel(private val repository: ControlRepository, installedApp
 
     fun save(onDone: () -> Unit) {
         val s = _state.value ?: return
-        viewModelScope.launch {
-            val added = s.apps.filter { it.packageName in s.selected && it.packageName !in s.original }
-            val removed = (s.original - s.selected).toList()
-            repository.applySelection(added, removed, System.currentTimeMillis())
-            onDone()
-        }
+        val added = s.apps.filter { it.packageName in s.selected && it.packageName !in s.original }
+        val removed = (s.original - s.selected).toList()
+        // 取消勾选会连同时段一起删
+        guarded(
+            change = { removed.associateWith { emptyList() } },
+            apply = {
+                repository.applySelection(added, removed, System.currentTimeMillis())
+                onDone()
+            },
+        )
     }
 }
 
@@ -70,6 +75,10 @@ class AppPickerViewModel(private val repository: ControlRepository, installedApp
 @Composable
 fun AppPickerScreen(viewModel: AppPickerViewModel, onBack: () -> Unit) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val pending by viewModel.pending.collectAsStateWithLifecycle()
+    if (pending != null) {
+        ReasonDialog(onDismiss = viewModel::cancelPending, onConfirm = viewModel::confirmPending)
+    }
     Scaffold(
         topBar = {
             TopAppBar(
