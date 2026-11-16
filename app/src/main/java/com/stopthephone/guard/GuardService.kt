@@ -57,6 +57,7 @@ class GuardService : AccessibilityService() {
     private var currentIntercept: Deferred<Long>? = null
     private var timerJob: Job? = null
     private var statusJob: Job? = null
+    private var showNotification = false
 
     private val clockReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
@@ -69,7 +70,6 @@ class GuardService : AccessibilityService() {
         val app = application as StopThePhoneApp
         recordDao = app.database.recordDao()
         overlay = InterceptOverlay(this, onRelease = ::release, onLeave = ::leave)
-        runCatching { GuardNotification.startForeground(this) }.onFailure { Log.e(TAG, "startForeground failed", it) }
 
         val filter = IntentFilter().apply {
             addAction(Intent.ACTION_TIME_CHANGED)
@@ -100,6 +100,18 @@ class GuardService : AccessibilityService() {
         }
         scope.launch {
             app.settingsStore.defaultReleaseMinutes.collect { defaultMinutes = it }
+        }
+        scope.launch {
+            app.settingsStore.showNotification.collect { show ->
+                showNotification = show
+                if (show) {
+                    runCatching { GuardNotification.startForeground(this@GuardService) }.onFailure { Log.e(TAG, "startForeground failed", it) }
+                    refreshStatus()
+                } else {
+                    statusJob?.cancel()
+                    GuardNotification.stop(this@GuardService)
+                }
+            }
         }
     }
 
@@ -209,6 +221,9 @@ class GuardService : AccessibilityService() {
      */
     private fun refreshStatus() {
         statusJob?.cancel()
+        if (!showNotification) {
+            return
+        }
         statusJob = scope.launch {
             val now = LocalDateTime.now()
             val zone = ZoneId.systemDefault()

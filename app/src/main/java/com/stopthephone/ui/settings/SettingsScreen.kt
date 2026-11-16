@@ -7,6 +7,7 @@ import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.fillMaxSize
@@ -24,6 +25,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -34,6 +36,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
@@ -61,6 +64,13 @@ class SettingsViewModel(private val settingsStore: SettingsStore) : ViewModel() 
         val next = (current + delta).coerceIn(SettingsStore.MIN_RELEASE_MINUTES, SettingsStore.MAX_RELEASE_MINUTES)
         viewModelScope.launch { settingsStore.setDefaultReleaseMinutes(next) }
     }
+
+    val showNotification: StateFlow<Boolean?> = settingsStore.showNotification
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    fun setShowNotification(show: Boolean) {
+        viewModelScope.launch { settingsStore.setShowNotification(show) }
+    }
 }
 
 private class PermissionItem(val name: String, val granted: Boolean?, val onOpen: () -> Unit)
@@ -69,6 +79,7 @@ private class PermissionItem(val name: String, val granted: Boolean?, val onOpen
 @Composable
 fun SettingsScreen(viewModel: SettingsViewModel, onBack: () -> Unit) {
     val minutes by viewModel.defaultReleaseMinutes.collectAsStateWithLifecycle()
+    val showNotification by viewModel.showNotification.collectAsStateWithLifecycle()
     val context = LocalContext.current
     // 从系统设置页回来时刷新权限状态
     var refreshKey by remember { mutableIntStateOf(0) }
@@ -128,6 +139,13 @@ fun SettingsScreen(viewModel: SettingsViewModel, onBack: () -> Unit) {
                                 modifier = Modifier.size(36.dp),
                             ) { Icon(Icons.Default.Add, contentDescription = "增加") }
                         },
+                    )
+                    GroupDivider()
+                    val show = showNotification ?: true
+                    GroupRow(
+                        title = "常驻通知",
+                        modifier = Modifier.toggleable(value = show, role = Role.Switch, onValueChange = viewModel::setShowNotification),
+                        trailing = { Switch(checked = show, onCheckedChange = null) },
                     )
                 }
             }

@@ -29,6 +29,10 @@ object GuardNotification {
         ServiceCompat.startForeground(service, NOTIFICATION_ID, build(service, "管控中", null), type)
     }
 
+    fun stop(service: Service) {
+        ServiceCompat.stopForeground(service, ServiceCompat.STOP_FOREGROUND_REMOVE)
+    }
+
     fun update(context: Context, title: String, text: String) {
         context.getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, build(context, title, text))
     }

@@ -1,6 +1,7 @@
 package com.stopthephone.data
 
 import android.content.Context
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
@@ -18,6 +19,12 @@ class SettingsStore(private val context: Context) {
         context.dataStore.edit { it[DEFAULT_RELEASE_MINUTES] = minutes }
     }
 
+    val showNotification: Flow<Boolean> = context.dataStore.data.map { it[SHOW_NOTIFICATION] ?: true }
+
+    suspend fun setShowNotification(show: Boolean) {
+        context.dataStore.edit { it[SHOW_NOTIFICATION] = show }
+    }
+
     // 使用情况事件已经同步到的时刻，没同步过时为 null
     val usageSyncedUntil: Flow<Long?> = context.dataStore.data.map { it[USAGE_SYNCED_UNTIL] }
 
@@ -32,6 +39,7 @@ class SettingsStore(private val context: Context) {
         const val RELEASE_MINUTES_STEP = 5
 
         private val DEFAULT_RELEASE_MINUTES = intPreferencesKey("default_release_minutes")
+        private val SHOW_NOTIFICATION = booleanPreferencesKey("show_notification")
         private val USAGE_SYNCED_UNTIL = longPreferencesKey("usage_synced_until")
     }
 }
