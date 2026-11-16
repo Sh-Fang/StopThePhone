@@ -3,12 +3,15 @@ package com.stopthephone.guard
 import android.accessibilityservice.AccessibilityService
 import android.content.Context
 import android.graphics.PixelFormat
+import android.os.Build
 import android.view.KeyEvent
+import android.view.WindowInsetsController
 import android.view.WindowManager
 import android.widget.FrameLayout
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -113,8 +116,20 @@ class InterceptOverlay(
             PixelFormat.OPAQUE,
         ).apply {
             softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
+            // 铺到状态栏和导航栏下面
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                fitInsetsTypes = 0
+                layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
+            } else {
+                flags = flags or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+            }
         }
         windowManager.addView(container, params)
+        // 黑底上用浅色状态栏图标
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            val light = WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
+            container.windowInsetsController?.setSystemBarsAppearance(0, light)
+        }
         root = container
         lifecycleOwner = owner
     }
@@ -145,10 +160,11 @@ class InterceptOverlay(
                     modifier = Modifier.fillMaxSize().systemBarsPadding().imePadding().padding(horizontal = 28.dp, vertical = 24.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
+                    Spacer(Modifier.weight(1f))
                     Column(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(14.dp, Alignment.CenterVertically),
+                        verticalArrangement = Arrangement.spacedBy(14.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.padding(bottom = 40.dp),
                     ) {
                         AppIcon(req.packageName, size = 72.dp)
                         Text(req.label, style = MaterialTheme.typography.headlineLarge, modifier = Modifier.semantics { heading() })
@@ -207,6 +223,7 @@ class InterceptOverlay(
                         colors = ButtonDefaults.textButtonColors(contentColor = colors.onSurface),
                         modifier = Modifier.fillMaxWidth().height(48.dp),
                     ) { Text("放行") }
+                    Spacer(Modifier.weight(1f))
                 }
             }
         }
