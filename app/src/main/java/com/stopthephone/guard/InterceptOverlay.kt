@@ -3,6 +3,9 @@ package com.stopthephone.guard
 import android.accessibilityservice.AccessibilityService
 import android.content.Context
 import android.graphics.PixelFormat
+import android.media.AudioAttributes
+import android.media.AudioFocusRequest
+import android.media.AudioManager
 import android.os.Build
 import android.view.KeyEvent
 import android.view.WindowInsetsController
@@ -80,6 +83,11 @@ class InterceptOverlay(
     private var root: FrameLayout? = null
     private var lifecycleOwner: OverlayLifecycleOwner? = null
     private val request = mutableStateOf<InterceptRequest?>(null)
+    private val audioManager = service.getSystemService(AudioManager::class.java)
+    private val audioFocus = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
+        .setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA).build())
+        .setOnAudioFocusChangeListener { }
+        .build()
 
     val showingPackage: String? get() = if (root != null) request.value?.packageName else null
 
@@ -132,6 +140,7 @@ class InterceptOverlay(
         }
         root = container
         lifecycleOwner = owner
+        pauseMedia()
     }
 
     fun updateWindowEnd(windowEnd: LocalDateTime) {
@@ -141,10 +150,20 @@ class InterceptOverlay(
     fun hide() {
         val view = root ?: return
         windowManager.removeView(view)
+        audioManager.abandonAudioFocusRequest(audioFocus)
         lifecycleOwner?.destroy()
         root = null
         lifecycleOwner = null
         request.value = null
+    }
+
+    /**
+     * 抢占媒体音频焦点并发送暂停键，让后台的视频和音乐停下来。
+     */
+    private fun pauseMedia() {
+        audioManager.requestAudioFocus(audioFocus)
+        audioManager.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_MEDIA_PAUSE))
+        audioManager.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_MEDIA_PAUSE))
     }
 
     @Composable
