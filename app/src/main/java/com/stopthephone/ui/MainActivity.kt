@@ -19,6 +19,10 @@ import com.stopthephone.ui.picker.AppPickerScreen
 import com.stopthephone.ui.picker.AppPickerViewModel
 import com.stopthephone.ui.settings.SettingsScreen
 import com.stopthephone.ui.settings.SettingsViewModel
+import com.stopthephone.ui.stats.ReasonsScreen
+import com.stopthephone.ui.stats.ReasonsViewModel
+import com.stopthephone.ui.stats.StatsScreen
+import com.stopthephone.ui.stats.StatsViewModel
 import com.stopthephone.ui.theme.StpTheme
 
 class MainActivity : ComponentActivity() {
@@ -45,6 +49,7 @@ private fun StpNavHost() {
                 onPickApps = { navController.navigate("picker") },
                 onOpenApp = { navController.navigate("detail/$it") },
                 onOpenSettings = { navController.navigate("settings") },
+                onOpenStats = { navController.navigate("stats") },
             )
         }
         composable("picker") {
@@ -57,6 +62,19 @@ private fun StpNavHost() {
             val packageName = entry.arguments?.getString("packageName").orEmpty()
             AppDetailScreen(
                 viewModel = viewModel { AppDetailViewModel(app.controlRepository, packageName) },
+                onBack = { navController.popBackStack() },
+            )
+        }
+        composable("stats") {
+            StatsScreen(
+                viewModel = viewModel { StatsViewModel(app.statsRepository, app.usageSync) },
+                onBack = { navController.popBackStack() },
+                onOpenReasons = { navController.navigate("reasons") },
+            )
+        }
+        composable("reasons") {
+            ReasonsScreen(
+                viewModel = viewModel { ReasonsViewModel(app.statsRepository, app.installedApps) },
                 onBack = { navController.popBackStack() },
             )
         }

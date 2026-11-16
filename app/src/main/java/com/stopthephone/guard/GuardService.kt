@@ -81,7 +81,7 @@ class GuardService : AccessibilityService() {
 
         // 先收尾遗留事件、载入放行，再开始按配置拦截
         scope.launch {
-            recordDao.closeOpenIntercepts(System.currentTimeMillis())
+            recordDao.closeOpenIntercepts()
             recordDao.activeReleases(System.currentTimeMillis()).forEach { release ->
                 val endAt = release.endAt ?: return@forEach
                 releaseEnds[release.packageName] = maxOf(endAt, releaseEnds[release.packageName] ?: 0L)

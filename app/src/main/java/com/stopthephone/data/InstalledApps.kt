@@ -33,6 +33,13 @@ class InstalledApps(private val context: Context) {
             .sortedWith(compareBy(collator) { it.label })
     }
 
+    /**
+     * 返回应用名称，应用已卸载时返回 null。
+     */
+    suspend fun label(packageName: String): String? = withContext(Dispatchers.IO) {
+        runCatching { packageManager.getApplicationLabel(packageManager.getApplicationInfo(packageName, 0)).toString() }.getOrNull()
+    }
+
     suspend fun icon(packageName: String): Bitmap? = withContext(Dispatchers.IO) {
         iconCache.get(packageName) ?: runCatching {
             packageManager.getApplicationIcon(packageName).toBitmap(ICON_SIZE_PX, ICON_SIZE_PX)
