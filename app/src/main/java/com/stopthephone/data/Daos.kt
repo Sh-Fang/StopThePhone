@@ -85,11 +85,8 @@ interface RecordDao {
     @Query("SELECT * FROM `release` WHERE purpose = 'RELEASE' AND endAt > :now")
     suspend fun activeReleases(now: Long): List<Release>
 
-    @Query("SELECT COUNT(*) FROM intercept_event WHERE shownAt >= :from")
-    suspend fun countInterceptsSince(from: Long): Int
-
-    @Query("SELECT COUNT(*) FROM `release` WHERE purpose = 'RELEASE' AND createdAt >= :from")
-    suspend fun countReleasesSince(from: Long): Int
+    @Query("SELECT COUNT(*) FROM intercept_event WHERE shownAt >= :from AND outcome = 'GAVE_UP'")
+    suspend fun countGaveUpSince(from: Long): Int
 
     @Insert
     suspend fun insertUsageSessions(sessions: List<UsageSession>)

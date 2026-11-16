@@ -163,7 +163,6 @@ class GuardService : AccessibilityService() {
         val shownAt = now.toEpochMillis()
         currentIntercept = scope.async {
             recordDao.insertIntercept(InterceptEvent(packageName = app.packageName, shownAt = shownAt, closedAt = null, outcome = null, releaseId = null))
-                .also { refreshStatus() }
         }
     }
 
@@ -174,9 +173,7 @@ class GuardService : AccessibilityService() {
         scope.launch {
             val releaseId = release?.let { recordDao.insertRelease(it) }
             recordDao.closeIntercept(pending.await(), closedAt, outcome, releaseId)
-            if (releaseId != null) {
-                refreshStatus()
-            }
+            refreshStatus()
         }
     }
 
@@ -231,9 +228,8 @@ class GuardService : AccessibilityService() {
             val releases = releaseEnds.mapValues { LocalDateTime.ofInstant(Instant.ofEpochMilli(it.value), zone) }
             val status = GuardStatus.describe(apps.mapValues { it.value.label }, rulesByApp, releases, now)
             val todayStart = now.toLocalDate().atStartOfDay(zone).toInstant().toEpochMilli()
-            val intercepts = recordDao.countInterceptsSince(todayStart)
-            val released = recordDao.countReleasesSince(todayStart)
-            val text = "今日拦截 $intercepts 次 · 放行 $released 次"
+            val resisted = recordDao.countGaveUpSince(todayStart)
+            val text = "今天忍住了 $resisted 次"
             // 首次直接带内容进前台，避免占位通知晚到覆盖内容
             runCatching {
                 if (foregroundStarted) {
