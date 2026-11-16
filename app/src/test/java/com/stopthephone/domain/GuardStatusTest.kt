@@ -55,6 +55,7 @@ class GuardStatusTest {
     fun releaseTakesPriority() {
         val status = GuardStatus.describe(labels, mapOf("a" to evening, "b" to evening), mapOf("b" to at(21, 15)), at(21, 5))
         assertEquals("哔哩哔哩 放行至 21:15", status.text)
+        assertEquals("b", status.releasedPackage)
         assertEquals(at(21, 15), status.nextChange)
         // 到期的放行不再显示
         assertEquals("抖音、哔哩哔哩 管控中", GuardStatus.describe(labels, mapOf("a" to evening, "b" to evening), mapOf("b" to at(21, 15)), at(21, 15)).text)

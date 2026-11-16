@@ -3,9 +3,9 @@ package com.stopthephone.domain
 import java.time.LocalDateTime
 
 /**
- * 常驻通知的一行状态，以及状态下一次可能变化的时刻。
+ * 常驻通知的一行状态、显示的放行应用，以及状态下一次可能变化的时刻。
  */
-data class GuardStatusLine(val text: String, val nextChange: LocalDateTime?)
+data class GuardStatusLine(val text: String, val nextChange: LocalDateTime?, val releasedPackage: String? = null)
 
 object GuardStatus {
 
@@ -30,7 +30,7 @@ object GuardStatus {
         if (released.isNotEmpty()) {
             val (packageName, end) = released.first()
             val more = if (released.size > 1) " 等 ${released.size} 个应用" else ""
-            return GuardStatusLine("${labels.getValue(packageName)}$more 放行至 ${clock(end)}", nextChange)
+            return GuardStatusLine("${labels.getValue(packageName)}$more 放行至 ${clock(end)}", nextChange, packageName)
         }
 
         val controlled = labels.keys

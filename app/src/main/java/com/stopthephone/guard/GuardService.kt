@@ -50,6 +50,8 @@ class GuardService : AccessibilityService() {
     private var rulesByApp: Map<String, List<PeriodRule>> = emptyMap()
     // 每个应用生效中的放行结束时刻（毫秒）
     private val releaseEnds = mutableMapOf<String, Long>()
+    // 每个应用最近一次放行写的理由
+    private val releaseReasons = mutableMapOf<String, String>()
     private var defaultMinutes = SettingsStore.DEFAULT_RELEASE_MINUTES_VALUE
     private var foreground: String? = null
     private var currentWindow: TimeWindow? = null
@@ -88,7 +90,10 @@ class GuardService : AccessibilityService() {
             recordDao.closeOpenIntercepts()
             recordDao.activeReleases(System.currentTimeMillis()).forEach { release ->
                 val endAt = release.endAt ?: return@forEach
-                releaseEnds[release.packageName] = maxOf(endAt, releaseEnds[release.packageName] ?: 0L)
+                if (endAt > (releaseEnds[release.packageName] ?: 0L)) {
+                    releaseEnds[release.packageName] = endAt
+                    releaseReasons[release.packageName] = release.reason
+                }
             }
             combine(app.controlRepository.apps, app.controlRepository.periods) { appList, periods ->
                 appList.associateBy { it.packageName } to periods.groupBy({ it.packageName }, { it.toRule() })
@@ -183,6 +188,7 @@ class GuardService : AccessibilityService() {
         val now = LocalDateTime.now()
         val endAt = GuardRules.releaseEnd(now, minutes, window).toEpochMillis()
         releaseEnds[packageName] = endAt
+        releaseReasons[packageName] = reason
         val release = Release(
             packageName = packageName,
             reason = reason,
@@ -228,8 +234,12 @@ class GuardService : AccessibilityService() {
             val releases = releaseEnds.mapValues { LocalDateTime.ofInstant(Instant.ofEpochMilli(it.value), zone) }
             val status = GuardStatus.describe(apps.mapValues { it.value.label }, rulesByApp, releases, now)
             val todayStart = now.toLocalDate().atStartOfDay(zone).toInstant().toEpochMilli()
-            val resisted = recordDao.countGaveUpSince(todayStart)
-            val text = "今天忍住了 $resisted 次"
+            val reason = status.releasedPackage?.let { releaseReasons[it] }
+            val text = if (reason != null) {
+                "你说：$reason"
+            } else {
+                "今日拦截 ${recordDao.countInterceptsSince(todayStart)} 次 · 放行 ${recordDao.countReleasesSince(todayStart)} 次"
+            }
             // 首次直接带内容进前台，避免占位通知晚到覆盖内容
             runCatching {
                 if (foregroundStarted) {
