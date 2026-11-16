@@ -1,5 +1,6 @@
 package com.stopthephone.data
 
+import android.app.usage.UsageStatsManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ApplicationInfo
@@ -11,6 +12,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.text.Collator
 import java.util.Locale
+import java.util.concurrent.TimeUnit
 
 data class InstalledApp(val packageName: String, val label: String)
 
@@ -38,6 +40,17 @@ class InstalledApps(private val context: Context) {
      */
     suspend fun label(packageName: String): String? = withContext(Dispatchers.IO) {
         runCatching { packageManager.getApplicationLabel(packageManager.getApplicationInfo(packageName, 0)).toString() }.getOrNull()
+    }
+
+    /**
+     * 返回最近若干天各应用的前台时长，没有使用情况访问权限时为空。
+     */
+    suspend fun recentUsage(days: Long, now: Long): Map<String, Long> = withContext(Dispatchers.IO) {
+        val manager = context.getSystemService(UsageStatsManager::class.java)
+        runCatching { manager.queryAndAggregateUsageStats(now - TimeUnit.DAYS.toMillis(days), now) }
+            .getOrNull()
+            .orEmpty()
+            .mapValues { it.value.totalTimeInForeground }
     }
 
     suspend fun icon(packageName: String): Bitmap? = withContext(Dispatchers.IO) {

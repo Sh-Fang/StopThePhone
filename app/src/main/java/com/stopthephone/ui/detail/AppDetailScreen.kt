@@ -145,7 +145,7 @@ fun AppDetailScreen(viewModel: AppDetailViewModel, onBack: () -> Unit) {
     }
 
     editing?.let { period ->
-        PeriodEditorDialog(
+        PeriodEditorSheet(
             initial = period,
             onDismiss = { editing = null },
             onConfirm = {

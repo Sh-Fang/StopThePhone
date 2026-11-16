@@ -6,8 +6,8 @@ object PeriodFormat {
 
     val DAY_NAMES = listOf("一", "二", "三", "四", "五", "六", "日")
 
-    private const val WEEKDAYS = 0b0011111
-    private const val WEEKEND = 0b1100000
+    const val WEEKDAYS = 0b0011111
+    const val WEEKEND = 0b1100000
 
     fun time(minuteOfDay: Int): String = "%02d:%02d".format(minuteOfDay / 60, minuteOfDay % 60)
 
