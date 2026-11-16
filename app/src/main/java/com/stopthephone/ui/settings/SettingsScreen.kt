@@ -170,9 +170,8 @@ private fun permissionItems(context: Context, onRequestNotification: () -> Unit)
             context.startSafely(Permissions.batteryOptimizationRequest(context))
         },
     )
-    // 系统不提供自启动状态的查询，只给入口
     if (Permissions.isXiaomi()) {
-        items.add(PermissionItem("自启动", null) { context.startSafely(Permissions.xiaomiAutoStartSettings()) })
+        items.add(PermissionItem("自启动", Permissions.isXiaomiAutoStartAllowed(context)) { context.startSafely(Permissions.xiaomiAutoStartSettings()) })
     }
     return items
 }

@@ -17,6 +17,8 @@ import com.stopthephone.guard.GuardService
  */
 object Permissions {
 
+    private const val XIAOMI_AUTO_START_OP = 10008
+
     fun isAccessibilityEnabled(context: Context): Boolean {
         val enabled = Settings.Secure.getString(context.contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES) ?: return false
         val component = ComponentName(context, GuardService::class.java)
@@ -46,6 +48,15 @@ object Permissions {
 
     fun batteryOptimizationRequest(context: Context): Intent =
         Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:${context.packageName}"))
+
+    /**
+     * 小米自启动开关，读不到时返回 null。
+     */
+    fun isXiaomiAutoStartAllowed(context: Context): Boolean? = runCatching {
+        val appOps = context.getSystemService(AppOpsManager::class.java)
+        val method = AppOpsManager::class.java.getMethod("checkOpNoThrow", Int::class.java, Int::class.java, String::class.java)
+        method.invoke(appOps, XIAOMI_AUTO_START_OP, Process.myUid(), context.packageName) as Int == AppOpsManager.MODE_ALLOWED
+    }.getOrNull()
 
     fun xiaomiAutoStartSettings(): Intent =
         Intent().setComponent(ComponentName("com.miui.securitycenter", "com.miui.permcenter.autostart.AutoStartManagementActivity"))
