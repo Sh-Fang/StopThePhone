@@ -17,16 +17,12 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.Notes
-import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -53,6 +49,9 @@ import com.stopthephone.domain.StatsReport
 import com.stopthephone.domain.StatsScale
 import com.stopthephone.domain.Tally
 import com.stopthephone.ui.common.AppIcon
+import com.stopthephone.ui.common.GroupCard
+import com.stopthephone.ui.common.MetricText
+import com.stopthephone.ui.common.SegmentedControl
 import com.stopthephone.ui.common.PeriodFormat
 import com.stopthephone.usage.UsageSync
 import kotlinx.coroutines.Dispatchers
@@ -144,15 +143,11 @@ fun StatsScreen(viewModel: StatsViewModel, onBack: () -> Unit, onOpenReasons: ()
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             item {
-                SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-                    StatsScale.entries.forEachIndexed { index, scale ->
-                        SegmentedButton(
-                            selected = range.scale == scale,
-                            onClick = { viewModel.setScale(scale) },
-                            shape = SegmentedButtonDefaults.itemShape(index, StatsScale.entries.size),
-                        ) { Text(scaleName(scale)) }
-                    }
-                }
+                SegmentedControl(
+                    options = StatsScale.entries.map { scaleName(it) },
+                    selected = range.scale.ordinal,
+                    onSelect = { viewModel.setScale(StatsScale.entries[it]) },
+                )
                 Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = viewModel::previous) {
                         Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "上一${scaleName(range.scale)}")
@@ -198,7 +193,7 @@ private fun scaleName(scale: StatsScale): String = when (scale) {
 
 @Composable
 private fun Section(title: String, content: @Composable () -> Unit) {
-    Card(Modifier.fillMaxWidth()) {
+    GroupCard {
         Column(Modifier.padding(16.dp)) {
             Text(title, style = MaterialTheme.typography.titleSmall, modifier = Modifier.semantics { heading() })
             Spacer(Modifier.height(12.dp))
@@ -219,10 +214,10 @@ private fun Overview(totals: Tally) {
         tiles.chunked(2).forEach { row ->
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 row.forEach { (name, value) ->
-                    Card(Modifier.weight(1f)) {
-                        Column(Modifier.padding(12.dp)) {
+                    GroupCard(Modifier.weight(1f)) {
+                        Column(Modifier.padding(14.dp)) {
                             Text(name, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Text(value, style = MaterialTheme.typography.headlineSmall)
+                            MetricText(value, MaterialTheme.typography.headlineSmall)
                         }
                     }
                 }
@@ -323,15 +318,11 @@ private fun InterceptHeatmap(report: StatsReport) {
 private fun Ranking(report: StatsReport, labels: Map<String, String>) {
     var metric by rememberSaveable { mutableStateOf(RankMetric.USAGE) }
     Section("应用排行") {
-        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-            RankMetric.entries.forEachIndexed { index, entry ->
-                SegmentedButton(
-                    selected = metric == entry,
-                    onClick = { metric = entry },
-                    shape = SegmentedButtonDefaults.itemShape(index, RankMetric.entries.size),
-                ) { Text(entry.title) }
-            }
-        }
+        SegmentedControl(
+            options = RankMetric.entries.map { it.title },
+            selected = metric.ordinal,
+            onSelect = { metric = RankMetric.entries[it] },
+        )
         Spacer(Modifier.height(12.dp))
         val value: (Tally) -> Long = when (metric) {
             RankMetric.USAGE -> { tally -> tally.usageMillis }

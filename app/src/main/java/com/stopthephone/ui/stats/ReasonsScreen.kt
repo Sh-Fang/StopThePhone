@@ -4,12 +4,13 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowDropDown
@@ -23,7 +24,6 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -46,6 +46,9 @@ import com.stopthephone.data.Release
 import com.stopthephone.data.ReleasePurpose
 import com.stopthephone.data.StatsRepository
 import com.stopthephone.ui.common.AppIcon
+import com.stopthephone.ui.common.GroupDivider
+import com.stopthephone.ui.common.GroupItem
+import com.stopthephone.ui.common.GroupRow
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -160,13 +163,18 @@ fun ReasonsScreen(viewModel: ReasonsViewModel, onBack: () -> Unit) {
                     Text("无记录", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             } else {
-                LazyColumn(Modifier.fillMaxSize()) {
-                    items(list, key = { it.id }) { release ->
-                        ListItem(
-                            leadingContent = { AppIcon(release.packageName) },
-                            headlineContent = { Text(release.reason) },
-                            supportingContent = { Text(meta(release, labels)) },
-                        )
+                LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 24.dp)) {
+                    itemsIndexed(list, key = { _, release -> release.id }) { index, release ->
+                        GroupItem(index, list.size) {
+                            if (index > 0) {
+                                GroupDivider(inset = true)
+                            }
+                            GroupRow(
+                                title = release.reason,
+                                subtitle = meta(release, labels),
+                                leading = { AppIcon(release.packageName) },
+                            )
+                        }
                     }
                 }
             }

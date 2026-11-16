@@ -6,24 +6,25 @@ import android.content.Intent
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -31,15 +32,20 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.stopthephone.data.SettingsStore
 import com.stopthephone.system.Permissions
+import com.stopthephone.ui.common.GroupCard
+import com.stopthephone.ui.common.GroupDivider
+import com.stopthephone.ui.common.GroupRow
+import com.stopthephone.ui.common.SectionLabel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
@@ -96,38 +102,59 @@ fun SettingsScreen(viewModel: SettingsViewModel, onBack: () -> Unit) {
         },
     ) { padding ->
         val value = minutes ?: return@Scaffold
-        LazyColumn(Modifier.fillMaxSize().padding(padding)) {
+        LazyColumn(
+            Modifier.fillMaxSize().padding(padding),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp),
+        ) {
             item {
-                ListItem(
-                    headlineContent = { Text("默认放行时长") },
-                    trailingContent = {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            IconButton(
+                GroupCard(Modifier.padding(top = 8.dp)) {
+                    GroupRow(
+                        title = "默认放行时长",
+                        trailing = {
+                            FilledTonalIconButton(
                                 onClick = { viewModel.changeDefaultReleaseMinutes(-SettingsStore.RELEASE_MINUTES_STEP) },
                                 enabled = value > SettingsStore.MIN_RELEASE_MINUTES,
+                                modifier = Modifier.size(36.dp),
                             ) { Icon(Icons.Default.Remove, contentDescription = "减少") }
-                            Text("$value 分钟")
-                            IconButton(
+                            Text(
+                                "$value 分钟",
+                                style = MaterialTheme.typography.titleMedium,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.widthIn(min = 64.dp),
+                            )
+                            FilledTonalIconButton(
                                 onClick = { viewModel.changeDefaultReleaseMinutes(SettingsStore.RELEASE_MINUTES_STEP) },
                                 enabled = value < SettingsStore.MAX_RELEASE_MINUTES,
+                                modifier = Modifier.size(36.dp),
                             ) { Icon(Icons.Default.Add, contentDescription = "增加") }
-                        }
-                    },
-                )
-                HorizontalDivider()
-            }
-            permissions.forEach { permission ->
-                item {
-                    ListItem(
-                        headlineContent = { Text(permission.name) },
-                        trailingContent = {
-                            if (permission.granted == true) {
-                                Icon(Icons.Default.CheckCircle, contentDescription = "已开启", tint = MaterialTheme.colorScheme.primary)
-                            } else {
-                                TextButton(onClick = permission.onOpen) { Text("去开启") }
-                            }
                         },
                     )
+                }
+            }
+            item { SectionLabel("权限") }
+            item {
+                GroupCard {
+                    permissions.forEachIndexed { index, permission ->
+                        if (index > 0) {
+                            GroupDivider()
+                        }
+                        GroupRow(
+                            title = permission.name,
+                            onClick = if (permission.granted == true) null else permission.onOpen,
+                            trailing = {
+                                if (permission.granted == true) {
+                                    Icon(Icons.Default.CheckCircle, contentDescription = "已开启", tint = MaterialTheme.colorScheme.primary)
+                                } else {
+                                    Text("去开启", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                                    Icon(
+                                        Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            },
+                        )
+                    }
                 }
             }
         }

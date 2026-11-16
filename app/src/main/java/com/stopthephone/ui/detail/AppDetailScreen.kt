@@ -2,21 +2,25 @@ package com.stopthephone.ui.detail
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -28,12 +32,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.stopthephone.data.ControlPeriod
 import com.stopthephone.data.ControlRepository
 import com.stopthephone.data.ControlledApp
 import com.stopthephone.data.toRule
+import com.stopthephone.ui.common.GroupCard
+import com.stopthephone.ui.common.GroupDivider
 import com.stopthephone.ui.common.GuardedViewModel
 import com.stopthephone.ui.common.PeriodFormat
 import com.stopthephone.ui.common.ReasonDialog
@@ -112,7 +119,12 @@ fun AppDetailScreen(viewModel: AppDetailViewModel, onBack: () -> Unit) {
         },
         floatingActionButton = {
             if (!s?.periods.isNullOrEmpty()) {
-                FloatingActionButton(onClick = { editing = newPeriod() }) {
+                FloatingActionButton(
+                    onClick = { editing = newPeriod() },
+                    shape = CircleShape,
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                ) {
                     Icon(Icons.Default.Add, contentDescription = "添加时段")
                 }
             }
@@ -123,22 +135,45 @@ fun AppDetailScreen(viewModel: AppDetailViewModel, onBack: () -> Unit) {
         }
         if (s.periods.isEmpty()) {
             Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                Button(onClick = { editing = newPeriod() }) { Text("添加时段") }
+                Button(onClick = { editing = newPeriod() }, modifier = Modifier.height(52.dp)) { Text("添加时段") }
             }
         } else {
-            LazyColumn(Modifier.fillMaxSize().padding(padding)) {
-                items(s.periods, key = { it.id }) { period ->
-                    val rule = period.toRule()
-                    ListItem(
-                        modifier = Modifier.clickable { editing = period },
-                        headlineContent = { Text(PeriodFormat.range(rule), style = MaterialTheme.typography.titleLarge) },
-                        supportingContent = { Text(PeriodFormat.days(rule.daysMask)) },
-                        trailingContent = {
-                            IconButton(onClick = { viewModel.deletePeriod(period.id) }) {
-                                Icon(Icons.Default.Delete, contentDescription = "删除时段")
+            LazyColumn(
+                Modifier.fillMaxSize().padding(padding),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 96.dp),
+            ) {
+                item {
+                    GroupCard {
+                        s.periods.forEachIndexed { index, period ->
+                            if (index > 0) {
+                                GroupDivider()
                             }
-                        },
-                    )
+                            val rule = period.toRule()
+                            Row(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .clickable { editing = period }
+                                    .padding(start = 16.dp, end = 4.dp, top = 14.dp, bottom = 14.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Column(Modifier.weight(1f)) {
+                                    Text(PeriodFormat.range(rule), style = MaterialTheme.typography.headlineSmall)
+                                    Text(
+                                        PeriodFormat.days(rule.daysMask),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                                IconButton(onClick = { viewModel.deletePeriod(period.id) }) {
+                                    Icon(
+                                        Icons.Outlined.Delete,
+                                        contentDescription = "删除时段",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }

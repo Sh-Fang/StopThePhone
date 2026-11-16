@@ -1,6 +1,8 @@
 package com.stopthephone.ui.detail
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -37,6 +39,9 @@ import com.stopthephone.data.ControlledApp
 import com.stopthephone.ui.common.AppIcon
 import com.stopthephone.domain.PeriodRule
 import com.stopthephone.ui.common.PeriodFormat
+import com.stopthephone.ui.common.CircleToggle
+import com.stopthephone.ui.common.SegmentedControl
+import com.stopthephone.ui.common.WHEEL_ITEM_HEIGHT
 import com.stopthephone.ui.common.WheelPicker
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -51,59 +56,82 @@ fun PeriodEditorSheet(initial: ControlPeriod, onDismiss: () -> Unit, onConfirm: 
             Modifier.fillMaxWidth().padding(start = 24.dp, end = 24.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
-                TimeWheels("开始", start, onChange = { start = it })
-                Text("–", style = MaterialTheme.typography.headlineSmall)
-                TimeWheels(if (end <= start) "结束（次日）" else "结束", end, onChange = { end = it })
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf("每天" to PeriodRule.ALL_DAYS, "工作日" to PeriodFormat.WEEKDAYS, "周末" to PeriodFormat.WEEKEND).forEach { (name, mask) ->
-                    FilterChip(selected = daysMask == mask, onClick = { daysMask = mask }, label = { Text(name) })
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(Modifier.fillMaxWidth()) {
+                    WheelLabel("开始", Modifier.weight(1f))
+                    WheelLabel(if (end <= start) "结束 · 次日" else "结束", Modifier.weight(1f))
+                }
+                Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .height(WHEEL_ITEM_HEIGHT)
+                            .background(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.shapes.small),
+                    )
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        TimeWheels("开始", start, onChange = { start = it }, modifier = Modifier.weight(1f))
+                        Text("–", style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        TimeWheels("结束", end, onChange = { end = it }, modifier = Modifier.weight(1f))
+                    }
                 }
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
+            val presets = listOf(PeriodRule.ALL_DAYS, PeriodFormat.WEEKDAYS, PeriodFormat.WEEKEND)
+            SegmentedControl(
+                options = listOf("每天", "工作日", "周末"),
+                selected = presets.indexOf(daysMask).takeIf { it >= 0 },
+                onSelect = { daysMask = presets[it] },
+            )
+            Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
                 PeriodFormat.DAY_NAMES.forEachIndexed { i, name ->
                     val bit = 1 shl i
-                    FilterChip(
-                        selected = daysMask and bit != 0,
-                        onClick = { daysMask = daysMask xor bit },
-                        label = { Text(name, Modifier.fillMaxWidth(), textAlign = TextAlign.Center) },
-                        modifier = Modifier.weight(1f).semantics { contentDescription = "周$name" },
+                    CircleToggle(
+                        text = name,
+                        checked = daysMask and bit != 0,
+                        onCheckedChange = { daysMask = daysMask xor bit },
+                        description = "周$name",
                     )
                 }
             }
             Button(
                 onClick = { onConfirm(initial.copy(startMinute = start, endMinute = end, daysMask = daysMask)) },
                 enabled = daysMask != 0,
-                modifier = Modifier.fillMaxWidth().height(48.dp),
+                modifier = Modifier.fillMaxWidth().height(52.dp),
             ) { Text("保存") }
         }
     }
 }
 
 @Composable
-private fun TimeWheels(name: String, minuteOfDay: Int, onChange: (Int) -> Unit) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(name, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            WheelPicker(
-                count = HOURS,
-                value = minuteOfDay / 60,
-                onValueChange = { onChange(it * 60 + minuteOfDay % 60) },
-                label = { "%02d".format(it) },
-                name = "$name 时",
-                width = 56.dp,
-            )
-            Text(":", style = MaterialTheme.typography.headlineSmall)
-            WheelPicker(
-                count = MINUTES,
-                value = minuteOfDay % 60,
-                onValueChange = { onChange(minuteOfDay / 60 * 60 + it) },
-                label = { "%02d".format(it) },
-                name = "$name 分",
-                width = 56.dp,
-            )
-        }
+private fun WheelLabel(text: String, modifier: Modifier) {
+    Text(
+        text,
+        style = MaterialTheme.typography.labelLarge,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        textAlign = TextAlign.Center,
+        modifier = modifier,
+    )
+}
+
+@Composable
+private fun TimeWheels(name: String, minuteOfDay: Int, onChange: (Int) -> Unit, modifier: Modifier) {
+    Row(modifier, horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+        WheelPicker(
+            count = HOURS,
+            value = minuteOfDay / 60,
+            onValueChange = { onChange(it * 60 + minuteOfDay % 60) },
+            label = { "%02d".format(it) },
+            name = "$name 时",
+            width = 56.dp,
+        )
+        Text(":", style = MaterialTheme.typography.headlineSmall)
+        WheelPicker(
+            count = MINUTES,
+            value = minuteOfDay % 60,
+            onValueChange = { onChange(minuteOfDay / 60 * 60 + it) },
+            label = { "%02d".format(it) },
+            name = "$name 分",
+            width = 56.dp,
+        )
     }
 }
 

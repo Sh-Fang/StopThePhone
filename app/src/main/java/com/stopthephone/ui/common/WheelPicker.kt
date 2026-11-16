@@ -1,6 +1,5 @@
 package com.stopthephone.ui.common
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -8,7 +7,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -33,10 +31,10 @@ import kotlinx.coroutines.launch
 
 private const val VISIBLE_ITEMS = 5
 private const val LOOPS = 1000
-private val ITEM_HEIGHT: Dp = 40.dp
+val WHEEL_ITEM_HEIGHT: Dp = 40.dp
 
 /**
- * 循环滚轮，取值范围 0 until count。
+ * 循环滚轮，取值范围 0 until count，选中带由调用方绘制。
  */
 @Composable
 fun WheelPicker(
@@ -69,7 +67,7 @@ fun WheelPicker(
     Box(
         modifier
             .width(width)
-            .height(ITEM_HEIGHT * VISIBLE_ITEMS)
+            .height(WHEEL_ITEM_HEIGHT * VISIBLE_ITEMS)
             .clearAndSetSemantics {
                 contentDescription = "$name ${label(value)}"
                 customActions = listOf(
@@ -79,15 +77,9 @@ fun WheelPicker(
             },
         contentAlignment = Alignment.Center,
     ) {
-        Box(
-            Modifier
-                .fillMaxWidth()
-                .height(ITEM_HEIGHT)
-                .background(MaterialTheme.colorScheme.secondaryContainer, RoundedCornerShape(12.dp)),
-        )
         LazyColumn(state = state, flingBehavior = rememberSnapFlingBehavior(state), modifier = Modifier.fillMaxWidth()) {
             items(count * LOOPS) { index ->
-                Box(Modifier.fillMaxWidth().height(ITEM_HEIGHT), contentAlignment = Alignment.Center) {
+                Box(Modifier.fillMaxWidth().height(WHEEL_ITEM_HEIGHT), contentAlignment = Alignment.Center) {
                     Text(
                         label(index % count),
                         style = MaterialTheme.typography.headlineSmall,

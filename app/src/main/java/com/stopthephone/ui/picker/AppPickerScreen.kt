@@ -1,13 +1,14 @@
 package com.stopthephone.ui.picker
 
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
@@ -17,9 +18,9 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -28,6 +29,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
@@ -35,6 +38,9 @@ import com.stopthephone.data.ControlRepository
 import com.stopthephone.data.InstalledApp
 import com.stopthephone.data.InstalledApps
 import com.stopthephone.ui.common.AppIcon
+import com.stopthephone.ui.common.GroupDivider
+import com.stopthephone.ui.common.GroupItem
+import com.stopthephone.ui.common.GroupRow
 import com.stopthephone.ui.common.GuardedViewModel
 import com.stopthephone.ui.common.ReasonDialog
 import com.stopthephone.ui.stats.StatsFormat
@@ -130,7 +136,7 @@ fun AppPickerScreen(viewModel: AppPickerViewModel, onBack: () -> Unit) {
             return@Scaffold
         }
         Column(Modifier.fillMaxSize().padding(padding)) {
-            OutlinedTextField(
+            TextField(
                 value = s.query,
                 onValueChange = viewModel::setQuery,
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
@@ -142,22 +148,30 @@ fun AppPickerScreen(viewModel: AppPickerViewModel, onBack: () -> Unit) {
                     { IconButton(onClick = { viewModel.setQuery("") }) { Icon(Icons.Default.Close, contentDescription = "清除搜索") } }
                 },
                 singleLine = true,
-                shape = MaterialTheme.shapes.extraLarge,
+                shape = MaterialTheme.shapes.small,
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent,
+                ),
             )
-            LazyColumn(Modifier.fillMaxSize()) {
-                items(s.visibleApps, key = { it.packageName }) { app ->
+            LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp)) {
+                itemsIndexed(s.visibleApps, key = { _, app -> app.packageName }) { index, app ->
                     val usage = s.usage[app.packageName] ?: 0L
-                    ListItem(
-                        modifier = Modifier.clickable { viewModel.toggle(app.packageName) },
-                        leadingContent = { AppIcon(app.packageName) },
-                        headlineContent = { Text(app.label) },
-                        supportingContent = if (usage > 0L) {
-                            { Text(StatsFormat.duration(usage)) }
-                        } else {
-                            null
-                        },
-                        trailingContent = { Checkbox(checked = app.packageName in s.selected, onCheckedChange = { viewModel.toggle(app.packageName) }) },
-                    )
+                    val checked = app.packageName in s.selected
+                    GroupItem(index, s.visibleApps.size) {
+                        if (index > 0) {
+                            GroupDivider(inset = true)
+                        }
+                        GroupRow(
+                            title = app.label,
+                            subtitle = if (usage > 0L) StatsFormat.duration(usage) else null,
+                            modifier = Modifier.toggleable(value = checked, role = Role.Checkbox, onValueChange = { viewModel.toggle(app.packageName) }),
+                            leading = { AppIcon(app.packageName, size = 44.dp) },
+                            trailing = { Checkbox(checked = checked, onCheckedChange = null) },
+                        )
+                    }
                 }
             }
         }
