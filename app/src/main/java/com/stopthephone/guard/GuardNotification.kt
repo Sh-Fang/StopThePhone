@@ -22,11 +22,11 @@ object GuardNotification {
     private const val CHANNEL_ID = "guard"
     private const val NOTIFICATION_ID = 1
 
-    fun startForeground(service: Service) {
+    fun startForeground(service: Service, title: String, text: String) {
         val manager = service.getSystemService(NotificationManager::class.java)
         manager.createNotificationChannel(NotificationChannel(CHANNEL_ID, "管控服务", NotificationManager.IMPORTANCE_LOW))
         val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE else 0
-        ServiceCompat.startForeground(service, NOTIFICATION_ID, build(service, "管控中", null), type)
+        ServiceCompat.startForeground(service, NOTIFICATION_ID, build(service, title, text), type)
     }
 
     fun stop(service: Service) {
@@ -37,7 +37,7 @@ object GuardNotification {
         context.getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, build(context, title, text))
     }
 
-    private fun build(context: Context, title: String, text: String?): Notification {
+    private fun build(context: Context, title: String, text: String): Notification {
         val contentIntent = PendingIntent.getActivity(
             context,
             0,

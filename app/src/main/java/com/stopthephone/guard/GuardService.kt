@@ -58,6 +58,7 @@ class GuardService : AccessibilityService() {
     private var timerJob: Job? = null
     private var statusJob: Job? = null
     private var showNotification = false
+    private var foregroundStarted = false
 
     private val clockReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
@@ -105,11 +106,11 @@ class GuardService : AccessibilityService() {
             app.settingsStore.showNotification.collect { show ->
                 showNotification = show
                 if (show) {
-                    runCatching { GuardNotification.startForeground(this@GuardService) }.onFailure { Log.e(TAG, "startForeground failed", it) }
                     refreshStatus()
                 } else {
                     statusJob?.cancel()
                     GuardNotification.stop(this@GuardService)
+                    foregroundStarted = false
                 }
             }
         }
@@ -232,8 +233,16 @@ class GuardService : AccessibilityService() {
             val todayStart = now.toLocalDate().atStartOfDay(zone).toInstant().toEpochMilli()
             val intercepts = recordDao.countInterceptsSince(todayStart)
             val released = recordDao.countReleasesSince(todayStart)
-            runCatching { GuardNotification.update(this@GuardService, status.text, "今日拦截 $intercepts 次 · 放行 $released 次") }
-                .onFailure { Log.e(TAG, "notify failed", it) }
+            val text = "今日拦截 $intercepts 次 · 放行 $released 次"
+            // 首次直接带内容进前台，避免占位通知晚到覆盖内容
+            runCatching {
+                if (foregroundStarted) {
+                    GuardNotification.update(this@GuardService, status.text, text)
+                } else {
+                    GuardNotification.startForeground(this@GuardService, status.text, text)
+                    foregroundStarted = true
+                }
+            }.onFailure { Log.e(TAG, "notify failed", it) }
 
             val tomorrow = now.toLocalDate().plusDays(1).atStartOfDay()
             val next = listOfNotNull(status.nextChange, tomorrow).min()
