@@ -76,8 +76,14 @@ interface RecordDao {
     @Query("UPDATE intercept_event SET closedAt = :closedAt, outcome = :outcome, releaseId = :releaseId WHERE id = :id")
     suspend fun closeIntercept(id: Long, closedAt: Long, outcome: InterceptOutcome, releaseId: Long?)
 
-    @Query("SELECT * FROM `release` WHERE packageName = :packageName AND purpose = 'RELEASE' AND endAt > :now ORDER BY endAt DESC LIMIT 1")
-    suspend fun activeRelease(packageName: String, now: Long): Release?
+    /**
+     * 把进程被杀时没来得及收尾的拦截事件记为放弃。
+     */
+    @Query("UPDATE intercept_event SET closedAt = :closedAt, outcome = 'GAVE_UP' WHERE outcome IS NULL")
+    suspend fun closeOpenIntercepts(closedAt: Long)
+
+    @Query("SELECT * FROM `release` WHERE purpose = 'RELEASE' AND endAt > :now")
+    suspend fun activeReleases(now: Long): List<Release>
 
     @Insert
     suspend fun insertUsageSessions(sessions: List<UsageSession>)
