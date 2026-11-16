@@ -79,6 +79,16 @@ object Schedule {
             .minOrNull()
     }
 
+    /**
+     * 返回指定时刻之后最近的一个时段开始时刻，没有时返回 null。
+     */
+    fun nextStart(rules: List<PeriodRule>, time: LocalDateTime): LocalDateTime? {
+        return windowsAround(rules, time.toLocalDate())
+            .map { it.start }
+            .filter { it.isAfter(time) }
+            .minOrNull()
+    }
+
     private fun windowsAround(rules: List<PeriodRule>, date: LocalDate): List<TimeWindow> {
         val windows = mutableListOf<TimeWindow>()
         // 从前一天算起，前一天开始的跨午夜时段可能还没结束

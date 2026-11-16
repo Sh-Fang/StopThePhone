@@ -19,6 +19,7 @@ import com.stopthephone.data.ReleasePurpose
 import com.stopthephone.data.SettingsStore
 import com.stopthephone.data.toRule
 import com.stopthephone.domain.GuardRules
+import com.stopthephone.domain.GuardStatus
 import com.stopthephone.domain.PeriodRule
 import com.stopthephone.domain.TimeWindow
 import kotlinx.coroutines.CoroutineScope
@@ -55,10 +56,12 @@ class GuardService : AccessibilityService() {
     // 当前拦截事件的写库结果，拿到 id 后才能更新结局
     private var currentIntercept: Deferred<Long>? = null
     private var timerJob: Job? = null
+    private var statusJob: Job? = null
 
     private val clockReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             evaluate()
+            refreshStatus()
         }
     }
 
@@ -92,6 +95,7 @@ class GuardService : AccessibilityService() {
                 apps = appMap
                 rulesByApp = rules
                 evaluate()
+                refreshStatus()
             }
         }
         scope.launch {
@@ -146,6 +150,7 @@ class GuardService : AccessibilityService() {
         val shownAt = now.toEpochMillis()
         currentIntercept = scope.async {
             recordDao.insertIntercept(InterceptEvent(packageName = app.packageName, shownAt = shownAt, closedAt = null, outcome = null, releaseId = null))
+                .also { refreshStatus() }
         }
     }
 
@@ -156,6 +161,9 @@ class GuardService : AccessibilityService() {
         scope.launch {
             val releaseId = release?.let { recordDao.insertRelease(it) }
             recordDao.closeIntercept(pending.await(), closedAt, outcome, releaseId)
+            if (releaseId != null) {
+                refreshStatus()
+            }
         }
     }
 
@@ -193,6 +201,29 @@ class GuardService : AccessibilityService() {
         timerJob = scope.launch {
             delay(delayMillis)
             evaluate()
+        }
+    }
+
+    /**
+     * 刷新常驻通知，并在状态下次变化或跨天时再刷新。
+     */
+    private fun refreshStatus() {
+        statusJob?.cancel()
+        statusJob = scope.launch {
+            val now = LocalDateTime.now()
+            val zone = ZoneId.systemDefault()
+            val releases = releaseEnds.mapValues { LocalDateTime.ofInstant(Instant.ofEpochMilli(it.value), zone) }
+            val status = GuardStatus.describe(apps.mapValues { it.value.label }, rulesByApp, releases, now)
+            val todayStart = now.toLocalDate().atStartOfDay(zone).toInstant().toEpochMilli()
+            val intercepts = recordDao.countInterceptsSince(todayStart)
+            val released = recordDao.countReleasesSince(todayStart)
+            runCatching { GuardNotification.update(this@GuardService, status.text, "今日拦截 $intercepts 次 · 放行 $released 次") }
+                .onFailure { Log.e(TAG, "notify failed", it) }
+
+            val tomorrow = now.toLocalDate().plusDays(1).atStartOfDay()
+            val next = listOfNotNull(status.nextChange, tomorrow).min()
+            delay(Duration.between(now, next).toMillis() + TIMER_SLACK_MILLIS)
+            refreshStatus()
         }
     }
 

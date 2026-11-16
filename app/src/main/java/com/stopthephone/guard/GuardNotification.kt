@@ -1,9 +1,11 @@
 package com.stopthephone.guard
 
+import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
@@ -13,7 +15,7 @@ import com.stopthephone.R
 import com.stopthephone.ui.MainActivity
 
 /**
- * 管控服务的常驻通知，用来提高进程优先级。
+ * 管控服务的常驻通知，用来提高进程优先级，顺带显示当前状态和今日次数。
  */
 object GuardNotification {
 
@@ -23,19 +25,29 @@ object GuardNotification {
     fun startForeground(service: Service) {
         val manager = service.getSystemService(NotificationManager::class.java)
         manager.createNotificationChannel(NotificationChannel(CHANNEL_ID, "管控服务", NotificationManager.IMPORTANCE_LOW))
+        val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE else 0
+        ServiceCompat.startForeground(service, NOTIFICATION_ID, build(service, "管控中", null), type)
+    }
+
+    fun update(context: Context, title: String, text: String) {
+        context.getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, build(context, title, text))
+    }
+
+    private fun build(context: Context, title: String, text: String?): Notification {
         val contentIntent = PendingIntent.getActivity(
-            service,
+            context,
             0,
-            Intent(service, MainActivity::class.java),
+            Intent(context, MainActivity::class.java),
             PendingIntent.FLAG_IMMUTABLE,
         )
-        val notification = NotificationCompat.Builder(service, CHANNEL_ID)
+        return NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_guard)
-            .setContentTitle("管控中")
+            .setContentTitle(title)
+            .setContentText(text)
             .setOngoing(true)
+            .setOnlyAlertOnce(true)
+            .setShowWhen(false)
             .setContentIntent(contentIntent)
             .build()
-        val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE else 0
-        ServiceCompat.startForeground(service, NOTIFICATION_ID, notification, type)
     }
 }
