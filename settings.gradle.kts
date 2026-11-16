@@ -20,3 +20,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "StopThePhone"
 include(":app")
+include(":fixture-app")
