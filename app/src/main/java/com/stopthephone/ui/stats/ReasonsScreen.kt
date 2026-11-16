@@ -7,10 +7,12 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
@@ -129,14 +131,15 @@ fun ReasonsScreen(viewModel: ReasonsViewModel, onBack: () -> Unit) {
                         text = filter.packageName?.let { labels[it] ?: it } ?: "全部应用",
                         active = filter.packageName != null,
                         onClick = { appMenu = true },
+                        leading = filter.packageName?.let { packageName -> { AppIcon(packageName, size = 20.dp) } },
                     )
                     DropdownMenu(expanded = appMenu, onDismissRequest = { appMenu = false }) {
-                        DropdownMenuItem(text = { Text("全部应用") }, onClick = {
+                        DropdownMenuItem(text = { Text("全部应用") }, leadingIcon = { Spacer(Modifier.size(24.dp)) }, onClick = {
                             viewModel.setApp(null)
                             appMenu = false
                         })
                         labels.entries.sortedBy { it.value }.forEach { (packageName, label) ->
-                            DropdownMenuItem(text = { Text(label) }, onClick = {
+                            DropdownMenuItem(text = { Text(label) }, leadingIcon = { AppIcon(packageName, size = 24.dp) }, onClick = {
                                 viewModel.setApp(packageName)
                                 appMenu = false
                             })
@@ -218,7 +221,7 @@ private fun dateLabel(filter: ReasonFilter): String {
  * 筛选用的胶囊按钮。
  */
 @Composable
-private fun FilterPill(text: String, active: Boolean, onClick: () -> Unit) {
+private fun FilterPill(text: String, active: Boolean, onClick: () -> Unit, leading: (@Composable () -> Unit)? = null) {
     val container = if (active) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHighest
     val content = if (active) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
     Row(
@@ -226,9 +229,11 @@ private fun FilterPill(text: String, active: Boolean, onClick: () -> Unit) {
             .clip(CircleShape)
             .background(container)
             .clickable(role = Role.Button, onClick = onClick)
-            .padding(start = 14.dp, end = 8.dp, top = 7.dp, bottom = 7.dp),
+            .padding(start = if (leading != null) 8.dp else 14.dp, end = 8.dp, top = 7.dp, bottom = 7.dp),
         verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
+        leading?.invoke()
         Text(text, style = MaterialTheme.typography.labelLarge, color = content)
         Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = content)
     }
