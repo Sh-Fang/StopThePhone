@@ -1,0 +1,1 @@
+安卓用原生 Kotlin 开发，以后做 iOS 时单独用 Swift 写一套，不用 Flutter。应用的核心能力全部依赖系统接口：安卓上是无障碍服务、悬浮窗、前台服务和使用情况统计，iOS 上是 FamilyControls / ManagedSettings / DeviceActivity 及其扩展。这些在 Flutter 里也得写原生代码再桥接，两端真正能共用的只有设置页和统计页，省下的工作量抵不上多维护一层桥接的成本。

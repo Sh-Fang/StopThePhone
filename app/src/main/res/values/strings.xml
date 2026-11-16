@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">StopThePhone</string>
+    <string name="guard_service_label">StopThePhone 管控</string>
+    <string name="guard_service_description">检测管控应用是否在前台，在管控时段内盖上拦截页。</string>
+</resources>
