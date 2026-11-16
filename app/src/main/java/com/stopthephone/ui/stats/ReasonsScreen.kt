@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -18,6 +17,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material3.Button
 import androidx.compose.material3.DatePickerDefaults
@@ -131,10 +131,10 @@ fun ReasonsScreen(viewModel: ReasonsViewModel, onBack: () -> Unit) {
                         text = filter.packageName?.let { labels[it] ?: it } ?: "全部应用",
                         active = filter.packageName != null,
                         onClick = { appMenu = true },
-                        leading = filter.packageName?.let { packageName -> { AppIcon(packageName, size = 20.dp) } },
+                        leading = { filter.packageName?.let { AppIcon(it, size = 20.dp) } ?: Icon(Icons.Default.Apps, contentDescription = null, modifier = Modifier.size(20.dp)) },
                     )
                     DropdownMenu(expanded = appMenu, onDismissRequest = { appMenu = false }) {
-                        DropdownMenuItem(text = { Text("全部应用") }, leadingIcon = { Spacer(Modifier.size(24.dp)) }, onClick = {
+                        DropdownMenuItem(text = { Text("全部应用") }, leadingIcon = { Icon(Icons.Default.Apps, contentDescription = null) }, onClick = {
                             viewModel.setApp(null)
                             appMenu = false
                         })
