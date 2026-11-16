@@ -1,4 +1,4 @@
-package com.stopthephone.ui.settings
+package com.stopthephone.system
 
 import android.app.AppOpsManager
 import android.content.ComponentName

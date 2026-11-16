@@ -41,7 +41,7 @@ private fun StpNavHost() {
     NavHost(navController, startDestination = "home") {
         composable("home") {
             HomeScreen(
-                viewModel = viewModel { HomeViewModel(app.controlRepository) },
+                viewModel = viewModel { HomeViewModel(app.controlRepository, app.usageSync) },
                 onPickApps = { navController.navigate("picker") },
                 onOpenApp = { navController.navigate("detail/$it") },
                 onOpenSettings = { navController.navigate("settings") },

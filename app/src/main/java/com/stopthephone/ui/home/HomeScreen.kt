@@ -38,18 +38,25 @@ import androidx.lifecycle.viewModelScope
 import com.stopthephone.data.ControlRepository
 import com.stopthephone.data.toRule
 import com.stopthephone.domain.PeriodRule
+import com.stopthephone.system.Permissions
+import com.stopthephone.usage.UsageSync
 import com.stopthephone.ui.common.AppIcon
 import com.stopthephone.ui.common.PeriodFormat
-import com.stopthephone.ui.settings.Permissions
 import com.stopthephone.ui.settings.startSafely
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 
 data class AppSummary(val packageName: String, val label: String, val periods: List<PeriodRule>)
 
-class HomeViewModel(repository: ControlRepository) : ViewModel() {
+class HomeViewModel(repository: ControlRepository, usageSync: UsageSync) : ViewModel() {
+
+    init {
+        // 打开首页时顺手同步一次使用时长
+        viewModelScope.launch { usageSync.run() }
+    }
 
     val apps: StateFlow<List<AppSummary>?> = combine(repository.apps, repository.periods) { apps, periods ->
         val byApp = periods.groupBy { it.packageName }
