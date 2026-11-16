@@ -52,6 +52,7 @@ class GuardService : AccessibilityService() {
     private val releaseEnds = mutableMapOf<String, Long>()
     // 每个应用最近一次放行写的理由
     private val releaseReasons = mutableMapOf<String, String>()
+    private val releaseStarts = mutableMapOf<String, Long>()
     private var defaultMinutes = SettingsStore.DEFAULT_RELEASE_MINUTES_VALUE
     private var foreground: String? = null
     private var currentWindow: TimeWindow? = null
@@ -93,6 +94,7 @@ class GuardService : AccessibilityService() {
                 if (endAt > (releaseEnds[release.packageName] ?: 0L)) {
                     releaseEnds[release.packageName] = endAt
                     releaseReasons[release.packageName] = release.reason
+                    releaseStarts[release.packageName] = release.createdAt
                 }
             }
             combine(app.controlRepository.apps, app.controlRepository.periods) { appList, periods ->
@@ -189,6 +191,7 @@ class GuardService : AccessibilityService() {
         val endAt = GuardRules.releaseEnd(now, minutes, window).toEpochMillis()
         releaseEnds[packageName] = endAt
         releaseReasons[packageName] = reason
+        releaseStarts[packageName] = now.toEpochMillis()
         val release = Release(
             packageName = packageName,
             reason = reason,
@@ -232,7 +235,8 @@ class GuardService : AccessibilityService() {
             val now = LocalDateTime.now()
             val zone = ZoneId.systemDefault()
             val releases = releaseEnds.mapValues { LocalDateTime.ofInstant(Instant.ofEpochMilli(it.value), zone) }
-            val status = GuardStatus.describe(apps.mapValues { it.value.label }, rulesByApp, releases, now)
+            val starts = releaseStarts.mapValues { LocalDateTime.ofInstant(Instant.ofEpochMilli(it.value), zone) }
+            val status = GuardStatus.describe(apps.mapValues { it.value.label }, rulesByApp, releases, now, starts)
             val todayStart = now.toLocalDate().atStartOfDay(zone).toInstant().toEpochMilli()
             val reason = status.releasedPackage?.let { releaseReasons[it] }
             val text = if (reason != null) {

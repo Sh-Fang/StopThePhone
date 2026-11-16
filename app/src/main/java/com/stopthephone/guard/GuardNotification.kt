@@ -48,6 +48,7 @@ object GuardNotification {
             .setSmallIcon(R.drawable.ic_guard)
             .setContentTitle(title)
             .setContentText(text)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(text))
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setShowWhen(false)

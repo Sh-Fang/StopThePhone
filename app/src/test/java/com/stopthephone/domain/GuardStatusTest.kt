@@ -57,6 +57,16 @@ class GuardStatusTest {
         assertEquals("哔哩哔哩 放行至 21:15", status.text)
         assertEquals("b", status.releasedPackage)
         assertEquals(at(21, 15), status.nextChange)
+        // 多个放行时显示最近放行的
+        val latest = GuardStatus.describe(
+            labels,
+            mapOf("a" to evening, "b" to evening),
+            mapOf("a" to at(21, 30), "b" to at(21, 15)),
+            at(21, 10),
+            mapOf("a" to at(21, 0), "b" to at(21, 5)),
+        )
+        assertEquals("哔哩哔哩 等 2 个应用 放行至 21:15", latest.text)
+        assertEquals("b", latest.releasedPackage)
         // 到期的放行不再显示
         assertEquals("抖音、哔哩哔哩 管控中", GuardStatus.describe(labels, mapOf("a" to evening, "b" to evening), mapOf("b" to at(21, 15)), at(21, 15)).text)
     }

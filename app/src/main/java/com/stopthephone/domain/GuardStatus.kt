@@ -12,13 +12,14 @@ object GuardStatus {
     private const val MAX_NAMES = 2
 
     /**
-     * 按放行中、管控中、下次开始的优先级描述当前状态。
+     * 按放行中、管控中、下次开始的优先级描述当前状态，多个应用放行时显示最近放行的那个。
      */
     fun describe(
         labels: Map<String, String>,
         rulesByApp: Map<String, List<PeriodRule>>,
         releaseEnds: Map<String, LocalDateTime>,
         now: LocalDateTime,
+        releaseStarts: Map<String, LocalDateTime> = emptyMap(),
     ): GuardStatusLine {
         val nextChange = labels.keys
             .mapNotNull { GuardRules.nextCheck(rulesByApp[it].orEmpty(), releaseEnds[it], now) }
@@ -26,7 +27,7 @@ object GuardStatus {
 
         val released = labels.keys
             .mapNotNull { packageName -> releaseEnds[packageName]?.takeIf { it.isAfter(now) }?.let { packageName to it } }
-            .sortedBy { it.second }
+            .sortedByDescending { releaseStarts[it.first] ?: LocalDateTime.MIN }
         if (released.isNotEmpty()) {
             val (packageName, end) = released.first()
             val more = if (released.size > 1) " 等 ${released.size} 个应用" else ""
