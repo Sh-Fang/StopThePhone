@@ -112,6 +112,8 @@ class InterceptOverlay(
                 return super.dispatchKeyEvent(event)
             }
         }
+        // 先用纯黑底挡住应用，不等 Compose 画出第一帧
+        container.setBackgroundColor(android.graphics.Color.BLACK)
         container.setViewTreeLifecycleOwner(owner)
         container.setViewTreeSavedStateRegistryOwner(owner)
         container.addView(composeView)
