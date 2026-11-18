@@ -11,6 +11,7 @@ import android.view.KeyEvent
 import android.view.WindowInsetsController
 import android.view.WindowManager
 import android.widget.FrameLayout
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -30,18 +31,14 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -70,6 +67,8 @@ data class InterceptRequest(
     val defaultMinutes: Int,
 )
 
+private data class Draft(val reason: String, val minutes: Int, val expiresAt: LocalDateTime)
+
 /**
  * 用无障碍窗口在管控应用上盖一层全屏拦截页。
  */
@@ -83,6 +82,9 @@ class InterceptOverlay(
     private var root: FrameLayout? = null
     private var lifecycleOwner: OverlayLifecycleOwner? = null
     private val request = mutableStateOf<InterceptRequest?>(null)
+    private val reason = mutableStateOf("")
+    private val minutes = mutableIntStateOf(0)
+    private val drafts = mutableMapOf<String, Draft>()
     private val audioManager = service.getSystemService(AudioManager::class.java)
     private val audioFocus = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
         .setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA).build())
@@ -92,6 +94,10 @@ class InterceptOverlay(
     val showingPackage: String? get() = if (root != null) request.value?.packageName else null
 
     fun show(newRequest: InterceptRequest) {
+        if (request.value?.packageName != newRequest.packageName) {
+            saveDraft()
+            restoreDraft(newRequest)
+        }
         request.value = newRequest
         if (root != null) {
             return
@@ -151,12 +157,34 @@ class InterceptOverlay(
 
     fun hide() {
         val view = root ?: return
+        saveDraft()
         windowManager.removeView(view)
         audioManager.abandonAudioFocusRequest(audioFocus)
         lifecycleOwner?.destroy()
         root = null
         lifecycleOwner = null
         request.value = null
+    }
+
+    /**
+     * 把当前应用没提交的理由和时长存成草稿，有效到本次管控时段结束。
+     */
+    private fun saveDraft() {
+        val req = request.value ?: return
+        if (reason.value.isBlank()) {
+            drafts.remove(req.packageName)
+        } else {
+            drafts[req.packageName] = Draft(reason.value, minutes.intValue, req.windowEnd)
+        }
+    }
+
+    /**
+     * 填回该应用还没过期的草稿，没有就从空白开始。
+     */
+    private fun restoreDraft(req: InterceptRequest) {
+        val draft = drafts.remove(req.packageName)?.takeIf { LocalDateTime.now().isBefore(it.expiresAt) }
+        reason.value = draft?.reason.orEmpty()
+        minutes.intValue = draft?.minutes ?: req.defaultMinutes
     }
 
     /**
@@ -170,82 +198,91 @@ class InterceptOverlay(
 
     @Composable
     private fun InterceptContent(req: InterceptRequest) {
-        // 换了一个应用就重置输入
-        key(req.packageName) {
-            var reason by remember { mutableStateOf("") }
-            var minutes by remember { mutableIntStateOf(req.defaultMinutes) }
-            val effective = ReasonRule.effectiveLength(reason)
-            val colors = MaterialTheme.colorScheme
-            Surface(Modifier.fillMaxSize(), color = colors.background) {
+        val effective = ReasonRule.effectiveLength(reason.value)
+        val ready = effective >= ReasonRule.MIN_LENGTH
+        val colors = MaterialTheme.colorScheme
+        Surface(Modifier.fillMaxSize(), color = colors.background) {
+            Column(
+                modifier = Modifier.fillMaxSize().systemBarsPadding().imePadding().padding(horizontal = 28.dp, vertical = 24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Spacer(Modifier.weight(1f))
                 Column(
-                    modifier = Modifier.fillMaxSize().systemBarsPadding().imePadding().padding(horizontal = 28.dp, vertical = 24.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.padding(bottom = 40.dp),
                 ) {
-                    Spacer(Modifier.weight(1f))
-                    Column(
-                        verticalArrangement = Arrangement.spacedBy(14.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.padding(bottom = 40.dp),
-                    ) {
-                        AppIcon(req.packageName, size = 72.dp)
-                        Text(req.label, style = MaterialTheme.typography.headlineLarge, modifier = Modifier.semantics { heading() })
-                        Text(
-                            buildAnnotatedString {
-                                append("管控中 · 至 ")
-                                withStyle(SpanStyle(color = colors.primary, fontWeight = FontWeight.SemiBold)) { append(formatEnd(req.windowEnd)) }
-                            },
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = colors.onSurfaceVariant,
-                        )
-                    }
-                    TextField(
-                        value = reason,
-                        onValueChange = { reason = it },
-                        label = { Text("使用理由") },
-                        supportingText = {
-                            Text("$effective / ${ReasonRule.MIN_LENGTH}", textAlign = TextAlign.End, modifier = Modifier.fillMaxWidth())
+                    AppIcon(req.packageName, size = 72.dp)
+                    Text(req.label, style = MaterialTheme.typography.headlineLarge, modifier = Modifier.semantics { heading() })
+                    Text(
+                        buildAnnotatedString {
+                            append("管控中 · 至 ")
+                            withStyle(SpanStyle(color = colors.primary, fontWeight = FontWeight.SemiBold)) { append(formatEnd(req.windowEnd)) }
                         },
-                        minLines = 2,
-                        shape = MaterialTheme.shapes.medium,
-                        colors = TextFieldDefaults.colors(
-                            focusedContainerColor = colors.surfaceVariant,
-                            unfocusedContainerColor = colors.surfaceVariant,
-                            focusedIndicatorColor = Color.Transparent,
-                            unfocusedIndicatorColor = Color.Transparent,
-                        ),
-                        modifier = Modifier.fillMaxWidth(),
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = colors.onSurfaceVariant,
                     )
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(16.dp),
-                        modifier = Modifier.padding(vertical = 8.dp),
-                    ) {
-                        FilledTonalIconButton(
-                            onClick = { minutes -= SettingsStore.RELEASE_MINUTES_STEP },
-                            enabled = minutes > SettingsStore.MIN_RELEASE_MINUTES,
-                        ) { Icon(Icons.Default.Remove, contentDescription = "减少放行时长") }
-                        Text(
-                            "$minutes 分钟",
-                            style = MaterialTheme.typography.titleMedium,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.widthIn(min = 80.dp),
-                        )
-                        FilledTonalIconButton(
-                            onClick = { minutes += SettingsStore.RELEASE_MINUTES_STEP },
-                            enabled = minutes < SettingsStore.MAX_RELEASE_MINUTES,
-                        ) { Icon(Icons.Default.Add, contentDescription = "增加放行时长") }
-                    }
-                    Button(onClick = onLeave, modifier = Modifier.fillMaxWidth().height(52.dp), shape = MaterialTheme.shapes.medium) {
-                        Text("离开", style = MaterialTheme.typography.titleMedium)
-                    }
-                    TextButton(
-                        onClick = { onRelease(reason, minutes) },
-                        enabled = effective >= ReasonRule.MIN_LENGTH,
-                        colors = ButtonDefaults.textButtonColors(contentColor = colors.onSurface),
-                        modifier = Modifier.fillMaxWidth().height(48.dp),
-                    ) { Text("放行") }
-                    Spacer(Modifier.weight(1f))
                 }
+                TextField(
+                    value = reason.value,
+                    onValueChange = { reason.value = it },
+                    label = { Text("使用理由") },
+                    supportingText = {
+                        Text(
+                            "$effective / ${ReasonRule.MIN_LENGTH}",
+                            color = if (ready) colors.primary else colors.onSurfaceVariant,
+                            textAlign = TextAlign.End,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    },
+                    minLines = 2,
+                    shape = MaterialTheme.shapes.medium,
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = colors.surfaceVariant,
+                        unfocusedContainerColor = colors.surfaceVariant,
+                        focusedIndicatorColor = Color.Transparent,
+                        unfocusedIndicatorColor = Color.Transparent,
+                    ),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    modifier = Modifier.padding(vertical = 8.dp),
+                ) {
+                    FilledTonalIconButton(
+                        onClick = { minutes.intValue -= SettingsStore.RELEASE_MINUTES_STEP },
+                        enabled = minutes.intValue > SettingsStore.MIN_RELEASE_MINUTES,
+                    ) { Icon(Icons.Default.Remove, contentDescription = "减少放行时长") }
+                    Text(
+                        "${minutes.intValue} 分钟",
+                        style = MaterialTheme.typography.titleMedium,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.widthIn(min = 80.dp),
+                    )
+                    FilledTonalIconButton(
+                        onClick = { minutes.intValue += SettingsStore.RELEASE_MINUTES_STEP },
+                        enabled = minutes.intValue < SettingsStore.MAX_RELEASE_MINUTES,
+                    ) { Icon(Icons.Default.Add, contentDescription = "增加放行时长") }
+                }
+                Button(onClick = onLeave, modifier = Modifier.fillMaxWidth().height(52.dp), shape = MaterialTheme.shapes.medium) {
+                    Text("离开", style = MaterialTheme.typography.titleMedium)
+                }
+                Spacer(Modifier.height(12.dp))
+                OutlinedButton(
+                    onClick = {
+                        val text = reason.value
+                        // 放行后不留草稿
+                        reason.value = ""
+                        onRelease(text, minutes.intValue)
+                    },
+                    enabled = ready,
+                    border = BorderStroke(1.dp, if (ready) colors.onSurface else colors.outlineVariant),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = colors.onSurface),
+                    shape = MaterialTheme.shapes.medium,
+                    modifier = Modifier.fillMaxWidth().height(52.dp),
+                ) { Text("放行", style = MaterialTheme.typography.titleMedium) }
+                Spacer(Modifier.weight(1f))
             }
         }
     }
