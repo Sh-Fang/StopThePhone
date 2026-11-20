@@ -84,7 +84,7 @@ class GuardService : AccessibilityService() {
         ContextCompat.registerReceiver(this, clockReceiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
 
         // 服务重新连上时用户可能正停在管控应用里，主动读一次当前前台
-        foreground = rootInActiveWindow?.packageName?.toString()?.takeUnless { isIgnored(it) }
+        readForeground()
 
         // 先收尾遗留事件、载入放行，再开始按配置拦截
         scope.launch {
@@ -162,7 +162,18 @@ class GuardService : AccessibilityService() {
             overlay.hide()
         } else {
         }
-        scheduleNext(if (app != null) GuardRules.nextCheck(rules, releaseEnd, now) else null, now)
+        val next = apps.keys.mapNotNull { GuardRules.nextCheck(rulesByApp[it].orEmpty(), releaseEndOf(it), now) }.minOrNull()
+        scheduleNext(next, now)
+    }
+
+    /**
+     * 从当前活动窗口读出前台应用，读不到或属于忽略的包时保持原值。
+     */
+    private fun readForeground() {
+        val packageName = rootInActiveWindow?.packageName?.toString() ?: return
+        if (!isIgnored(packageName)) {
+            foreground = packageName
+        }
     }
 
     private fun showIntercept(app: ControlledApp, window: TimeWindow, now: LocalDateTime) {
@@ -219,6 +230,7 @@ class GuardService : AccessibilityService() {
         val delayMillis = Duration.between(now, next).toMillis() + TIMER_SLACK_MILLIS
         timerJob = scope.launch {
             delay(delayMillis)
+            readForeground()
             evaluate()
         }
     }
