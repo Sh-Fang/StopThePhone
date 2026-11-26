@@ -89,6 +89,9 @@ class InterceptOverlay(
     private val request = mutableStateOf<InterceptRequest?>(null)
     private val reason = mutableStateOf("")
     private val minutes = mutableIntStateOf(0)
+    private val reviewing = mutableStateOf(false)
+    // AI 审核拒绝时的说明
+    private val rejection = mutableStateOf<String?>(null)
     private val drafts = mutableMapOf<String, Draft>()
     private val audioManager = service.getSystemService(AudioManager::class.java)
     private val audioFocus = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
@@ -160,9 +163,32 @@ class InterceptOverlay(
         request.value = request.value?.copy(windowEnd = windowEnd)
     }
 
+    /**
+     * 进入审核中：放行按钮不可点，清掉上次的拒绝说明。
+     */
+    fun startReview() {
+        reviewing.value = true
+        rejection.value = null
+    }
+
+    fun reject(comment: String) {
+        reviewing.value = false
+        rejection.value = comment
+    }
+
+    /**
+     * 放行前清空输入，撤掉拦截页时不留草稿。
+     */
+    fun clearInput() {
+        reason.value = ""
+        reviewing.value = false
+        rejection.value = null
+    }
+
     fun hide() {
         val view = root ?: return
         saveDraft()
+        reviewing.value = false
         windowManager.removeView(view)
         audioManager.abandonAudioFocusRequest(audioFocus)
         lifecycleOwner?.destroy()
@@ -190,6 +216,8 @@ class InterceptOverlay(
         val draft = drafts.remove(req.packageName)?.takeIf { LocalDateTime.now().isBefore(it.expiresAt) }
         reason.value = draft?.reason.orEmpty()
         minutes.intValue = draft?.minutes ?: req.defaultMinutes
+        reviewing.value = false
+        rejection.value = null
     }
 
     /**
@@ -290,12 +318,13 @@ class InterceptOverlay(
             onValueChange = { reason.value = it },
             label = { Text("使用理由") },
             supportingText = {
-                Text(
-                    "$effective / ${ReasonRule.MIN_LENGTH}",
-                    color = if (effective >= ReasonRule.MIN_LENGTH) colors.primary else colors.onSurfaceVariant,
-                    textAlign = TextAlign.End,
-                    modifier = Modifier.fillMaxWidth(),
-                )
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(rejection.value.orEmpty(), color = colors.error, modifier = Modifier.weight(1f))
+                    Text(
+                        "$effective / ${ReasonRule.MIN_LENGTH}",
+                        color = if (effective >= ReasonRule.MIN_LENGTH) colors.primary else colors.onSurfaceVariant,
+                    )
+                }
             },
             minLines = 2,
             shape = MaterialTheme.shapes.medium,
@@ -343,19 +372,15 @@ class InterceptOverlay(
     @Composable
     private fun ReleaseButton(ready: Boolean, modifier: Modifier) {
         val colors = MaterialTheme.colorScheme
+        val enabled = ready && !reviewing.value
         OutlinedButton(
-            onClick = {
-                val text = reason.value
-                // 放行后不留草稿
-                reason.value = ""
-                onRelease(text, minutes.intValue)
-            },
-            enabled = ready,
-            border = BorderStroke(1.dp, if (ready) colors.onSurface else colors.outlineVariant),
+            onClick = { onRelease(reason.value, minutes.intValue) },
+            enabled = enabled,
+            border = BorderStroke(1.dp, if (enabled) colors.onSurface else colors.outlineVariant),
             colors = ButtonDefaults.outlinedButtonColors(contentColor = colors.onSurface),
             shape = MaterialTheme.shapes.medium,
             modifier = modifier.height(52.dp),
-        ) { Text("放行", style = MaterialTheme.typography.titleMedium) }
+        ) { Text(if (reviewing.value) "审核中" else "放行", style = MaterialTheme.typography.titleMedium) }
     }
 
     private fun formatEnd(end: LocalDateTime): String {

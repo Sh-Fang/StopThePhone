@@ -91,6 +91,12 @@ interface RecordDao {
     @Query("SELECT COUNT(*) FROM `release` WHERE purpose = 'RELEASE' AND createdAt >= :from")
     suspend fun countReleasesSince(from: Long): Int
 
+    @Query("SELECT * FROM `release` WHERE purpose = 'RELEASE' AND packageName = :packageName AND createdAt >= :from ORDER BY createdAt DESC")
+    suspend fun releasesOfSince(packageName: String, from: Long): List<Release>
+
+    @Query("SELECT COUNT(*) FROM intercept_event WHERE packageName = :packageName AND outcome = 'GAVE_UP' AND shownAt >= :from")
+    suspend fun countGaveUpOfSince(packageName: String, from: Long): Int
+
     @Insert
     suspend fun insertUsageSessions(sessions: List<UsageSession>)
 

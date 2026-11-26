@@ -3,7 +3,9 @@ package com.stopthephone
 import android.app.Application
 import com.stopthephone.data.AppDatabase
 import com.stopthephone.data.ControlRepository
+import com.stopthephone.data.DeepSeekClient
 import com.stopthephone.data.InstalledApps
+import com.stopthephone.data.ReleaseReviewer
 import com.stopthephone.data.SettingsStore
 import com.stopthephone.data.StatsRepository
 import com.stopthephone.usage.UsageSync
@@ -17,6 +19,7 @@ class StopThePhoneApp : Application() {
     val installedApps: InstalledApps by lazy { InstalledApps(this) }
     val statsRepository: StatsRepository by lazy { StatsRepository(database.controlDao(), database.recordDao()) }
     val usageSync: UsageSync by lazy { UsageSync(this, database.recordDao(), settingsStore) }
+    val releaseReviewer: ReleaseReviewer by lazy { ReleaseReviewer(database.recordDao(), settingsStore, DeepSeekClient()) }
 
     override fun onCreate() {
         super.onCreate()

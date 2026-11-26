@@ -8,6 +8,7 @@ import android.content.IntentFilter
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import android.view.inputmethod.InputMethodManager
+import android.widget.Toast
 import androidx.core.content.ContextCompat
 import com.stopthephone.StopThePhoneApp
 import com.stopthephone.data.ControlledApp
@@ -16,11 +17,14 @@ import com.stopthephone.data.InterceptOutcome
 import com.stopthephone.data.RecordDao
 import com.stopthephone.data.Release
 import com.stopthephone.data.ReleasePurpose
+import com.stopthephone.data.ReleaseReviewer
+import com.stopthephone.data.ReviewResult
 import com.stopthephone.data.SettingsStore
 import com.stopthephone.data.toRule
 import com.stopthephone.domain.GuardRules
 import com.stopthephone.domain.GuardStatus
 import com.stopthephone.domain.PeriodRule
+import com.stopthephone.domain.RejectedAttempt
 import com.stopthephone.domain.TimeWindow
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
@@ -45,6 +49,7 @@ class GuardService : AccessibilityService() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private lateinit var overlay: InterceptOverlay
     private lateinit var recordDao: RecordDao
+    private lateinit var reviewer: ReleaseReviewer
 
     private var apps: Map<String, ControlledApp> = emptyMap()
     private var rulesByApp: Map<String, List<PeriodRule>> = emptyMap()
@@ -58,6 +63,9 @@ class GuardService : AccessibilityService() {
     private var currentWindow: TimeWindow? = null
     // 当前拦截事件的写库结果，拿到 id 后才能更新结局
     private var currentIntercept: Deferred<Long>? = null
+    // 本次拦截中被 AI 审核拒绝的理由
+    private val rejectedAttempts = mutableListOf<RejectedAttempt>()
+    private var reviewJob: Job? = null
     private var timerJob: Job? = null
     private var statusJob: Job? = null
     private var showNotification = false
@@ -73,6 +81,7 @@ class GuardService : AccessibilityService() {
     override fun onServiceConnected() {
         val app = application as StopThePhoneApp
         recordDao = app.database.recordDao()
+        reviewer = app.releaseReviewer
         overlay = InterceptOverlay(this, onRelease = ::release, onLeave = ::leave)
 
         val filter = IntentFilter().apply {
@@ -178,6 +187,7 @@ class GuardService : AccessibilityService() {
 
     private fun showIntercept(app: ControlledApp, window: TimeWindow, now: LocalDateTime) {
         overlay.show(InterceptRequest(app.packageName, app.label, window.end, defaultMinutes))
+        rejectedAttempts.clear()
         val shownAt = now.toEpochMillis()
         currentIntercept = scope.async {
             recordDao.insertIntercept(InterceptEvent(packageName = app.packageName, shownAt = shownAt, closedAt = null, outcome = null, releaseId = null))
@@ -187,6 +197,8 @@ class GuardService : AccessibilityService() {
     private fun closeIntercept(outcome: InterceptOutcome, release: Release?) {
         val pending = currentIntercept ?: return
         currentIntercept = null
+        reviewJob?.cancel()
+        reviewJob = null
         val closedAt = System.currentTimeMillis()
         scope.launch {
             val releaseId = release?.let { recordDao.insertRelease(it) }
@@ -195,8 +207,41 @@ class GuardService : AccessibilityService() {
         }
     }
 
+    /**
+     * 先交给 AI 审核，通过、未开启或审核失败时放行，拒绝时在拦截页显示说明。
+     */
     private fun release(reason: String, minutes: Int) {
         val packageName = overlay.showingPackage ?: return
+        val window = currentWindow ?: return
+        val label = apps[packageName]?.label ?: return
+        overlay.startReview()
+        reviewJob = scope.launch {
+            val result = reviewer.review(packageName, label, window, minutes, reason, rejectedAttempts.toList())
+            reviewJob = null
+            when (result) {
+                is ReviewResult.Approved -> {
+                    if (result.minutes < minutes) {
+                        toast("放行 ${result.minutes} 分钟：${result.comment}")
+                    }
+                    grant(packageName, reason, result.minutes)
+                }
+                is ReviewResult.Rejected -> {
+                    rejectedAttempts.add(RejectedAttempt(reason, result.comment))
+                    overlay.reject(result.comment)
+                }
+                ReviewResult.Failed -> {
+                    toast("审核失败，已直接放行")
+                    grant(packageName, reason, minutes)
+                }
+                ReviewResult.Skipped -> grant(packageName, reason, minutes)
+            }
+        }
+    }
+
+    private fun grant(packageName: String, reason: String, minutes: Int) {
+        if (overlay.showingPackage != packageName) {
+            return
+        }
         val window = currentWindow ?: return
         val now = LocalDateTime.now()
         val endAt = GuardRules.releaseEnd(now, minutes, window).toEpochMillis()
@@ -212,6 +257,7 @@ class GuardService : AccessibilityService() {
             endAt = endAt,
         )
         closeIntercept(InterceptOutcome.RELEASED, release)
+        overlay.clearInput()
         overlay.hide()
         evaluate()
     }
@@ -271,6 +317,10 @@ class GuardService : AccessibilityService() {
             delay(Duration.between(now, next).toMillis() + TIMER_SLACK_MILLIS)
             refreshStatus()
         }
+    }
+
+    private fun toast(text: String) {
+        Toast.makeText(this, text, Toast.LENGTH_LONG).show()
     }
 
     private fun releaseEndOf(packageName: String): LocalDateTime? =
